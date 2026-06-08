@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Salon — Chat en ligne</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --bg:#0e0c14;
+    --panel:#16131f;
+    --panel-2:#1d1929;
+    --ink:#ece7f5;
+    --muted:#8b829e;
+    --accent:#ff5d3b;
+    --accent-2:#ffd23f;
+    --line:#2a2438;
+    --me:#ff5d3b;
+    --them:#26212f;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    background:
+      radial-gradient(1200px 600px at 85% -10%, rgba(255,93,59,.12), transparent 60%),
+      radial-gradient(900px 500px at -10% 110%, rgba(255,210,63,.08), transparent 55%),
+      var(--bg);
+    color:var(--ink);
+    font-family:"Space Mono",monospace;
+    display:flex;flex-direction:column;
+    height:100dvh;overflow:hidden;
+  }
+  /* ---------- écran de connexion ---------- */
+  #gate{
+    position:fixed;inset:0;z-index:50;
+    background:var(--bg);
+    display:flex;align-items:center;justify-content:center;padding:24px;
+  }
+  .gate-card{
+    width:100%;max-width:420px;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:20px;
+    padding:36px 28px;
+    box-shadow:0 30px 80px rgba(0,0,0,.5);
+  }
+  .gate-card h1{
+    font-family:"Fraunces",serif;font-weight:700;
+    font-size:38px;line-height:1;letter-spacing:-1px;margin-bottom:6px;
+  }
+  .gate-card h1 span{color:var(--accent)}
+  .gate-card p{color:var(--muted);font-size:13px;margin-bottom:26px}
+  label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin-bottom:8px}
+  input{
+    width:100%;background:var(--panel-2);border:1px solid var(--line);
+    color:var(--ink);font-family:inherit;font-size:15px;
+    padding:14px 16px;border-radius:12px;outline:none;transition:border-color .2s;
+  }
+  input:focus{border-color:var(--accent)}
+  .row{margin-bottom:18px}
+  .swatches{display:flex;gap:10px;margin-top:10px}
+  .swatch{width:32px;height:32px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:transform .15s}
+  .swatch.sel{border-color:var(--ink);transform:scale(1.12)}
+  button.primary{
+    width:100%;margin-top:8px;background:var(--accent);color:#1a0d09;
+    font-family:"Fraunces",serif;font-weight:700;font-size:17px;
+    border:none;padding:15px;border-radius:12px;cursor:pointer;transition:transform .1s,filter .2s;
+  }
+  button.primary:active{transform:scale(.98)}
+  button.primary:hover{filter:brightness(1.08)}
+  .config-note{margin-top:20px;font-size:11px;color:var(--muted);line-height:1.6;border-top:1px solid var(--line);padding-top:16px}
+  .config-note code{color:var(--accent-2)}
+  .warn{color:var(--accent);font-size:12px;margin-top:12px;display:none}
+  /* ---------- header ---------- */
+  header{
+    display:flex;align-items:center;gap:12px;
+    padding:14px 18px;border-bottom:1px solid var(--line);
+    background:rgba(22,19,31,.7);backdrop-filter:blur(12px);
+  }
+  .logo{font-family:"Fraunces",serif;font-weight:700;font-size:22px;letter-spacing:-.5px}
+  .logo span{color:var(--accent)}
+  .status{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+  .dot{width:9px;height:9px;border-radius:50%;background:#555;box-shadow:0 0 0 0 rgba(0,0,0,0)}
+  .dot.on{background:#3ddc84;box-shadow:0 0 12px #3ddc84}
+  /* ---------- messages ---------- */
+  #feed{
+    flex:1;overflow-y:auto;padding:20px 16px 8px;
+    display:flex;flex-direction:column;gap:14px;
+  }
+  .msg{max-width:78%;display:flex;flex-direction:column;gap:3px;animation:pop .25s ease}
+  @keyframes pop{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .msg .who{font-size:11px;color:var(--muted);padding:0 4px}
+  .bubble{
+    padding:11px 15px;border-radius:16px;font-size:14.5px;line-height:1.45;
+    word-wrap:break-word;white-space:pre-wrap;
+  }
+  .msg.them{align-self:flex-start}
+  .msg.them .bubble{background:var(--them);border-bottom-left-radius:5px}
+  .msg.me{align-self:flex-end;align-items:flex-end}
+  .msg.me .bubble{background:var(--me);color:#1a0d09;border-bottom-right-radius:5px}
+  .time{font-size:10px;color:var(--muted);padding:0 4px;opacity:.7}
+  .sys{align-self:center;font-size:11px;color:var(--muted);background:var(--panel-2);padding:5px 12px;border-radius:20px}
+  /* ---------- composer ---------- */
+  .composer{
+    display:flex;gap:10px;padding:12px 14px;
+    border-top:1px solid var(--line);background:var(--panel);
+    padding-bottom:max(12px,env(safe-area-inset-bottom));
+  }
+  .composer input{flex:1;border-radius:24px}
+  .send{
+    width:48px;height:48px;flex:none;border-radius:50%;border:none;
+    background:var(--accent);color:#1a0d09;font-size:20px;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;transition:transform .1s;
+  }
+  .send:active{transform:scale(.9)}
+  ::-webkit-scrollbar{width:8px}
+  ::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px}
+</style>
+</head>
+<body>
+
+<!-- ====== ÉCRAN DE CONNEXION ====== -->
+<div id="gate">
+  <div class="gate-card">
+    <h1>Le <span>Salon</span></h1>
+    <p>Entre un pseudo, choisis ta couleur, et discute en temps réel.</p>
+    <div class="row">
+      <label for="pseudo">Pseudo</label>
+      <input id="pseudo" maxlength="20" placeholder="Sbire…" autocomplete="off">
+    </div>
+    <div class="row">
+      <label>Couleur</label>
+      <div class="swatches" id="swatches"></div>
+    </div>
+    <button class="primary" id="enter">Rejoindre le salon →</button>
+    <div class="warn" id="warn">⚠ Configure d'abord tes clés Supabase dans le code (voir en bas du fichier).</div>
+    <div class="config-note">
+      Hébergement : pousse ce fichier sous le nom <code>index.html</code> dans un repo GitHub, puis active <strong>GitHub Pages</strong> (Settings → Pages → branche <code>main</code>). Renseigne <code>SUPABASE_URL</code> et <code>SUPABASE_ANON_KEY</code> en bas du fichier.
+    </div>
+  </div>
+</div>
+
+<!-- ====== CHAT ====== -->
+<header>
+  <div class="logo">Le <span>Salon</span></div>
+  <div class="status"><span class="dot" id="dot"></span><span id="statusTxt">hors ligne</span></div>
+</header>
+<div id="feed"></div>
+<div class="composer">
+  <input id="input" placeholder="Écris un message…" maxlength="500" autocomplete="off" disabled>
+  <button class="send" id="send" disabled>➤</button>
+</div>
+
+<script>
+/* ============================================================
+   CONFIGURATION  —  À REMPLIR
+   1. Crée un projet gratuit sur https://supabase.com
+   2. Project Settings → API : copie l'URL et la clé "anon public"
+   3. SQL Editor → exécute :
+        create table messages (
+          id bigint generated by default as identity primary key,
+          created_at timestamptz default now(),
+          pseudo text not null,
+          color text not null,
+          body text not null
+        );
+        alter table messages enable row level security;
+        create policy "lecture publique" on messages for select using (true);
+        create policy "ecriture publique" on messages for insert with check (true);
+   4. Database → Replication → active Realtime sur la table "messages"
+   ============================================================ */
+const SUPABASE_URL = "";        // ex: "https://xxxx.supabase.co"
+const SUPABASE_ANON_KEY = "";   // ex: "eyJhbGciOi..."
+
+const COLORS = ["#ff5d3b","#ffd23f","#3ddc84","#4dabf7","#cc5de8","#ff8787"];
+let me = { pseudo:"", color:COLORS[0] };
+let supa = null;
+
+/* --- sélecteur de couleur --- */
+const sw = document.getElementById("swatches");
+COLORS.forEach((c,i)=>{
+  const d=document.createElement("div");
+  d.className="swatch"+(i===0?" sel":"");
+  d.style.background=c;
+  d.onclick=()=>{document.querySelectorAll(".swatch").forEach(s=>s.classList.remove("sel"));d.classList.add("sel");me.color=c;};
+  sw.appendChild(d);
+});
+
+const feed=document.getElementById("feed");
+const input=document.getElementById("input");
+const sendBtn=document.getElementById("send");
+const dot=document.getElementById("dot");
+const statusTxt=document.getElementById("statusTxt");
+
+function esc(s){return s.replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]));}
+function fmtTime(ts){const d=new Date(ts);return d.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"});}
+
+function addMsg(m){
+  const mine = m.pseudo===me.pseudo;
+  const el=document.createElement("div");
+  el.className="msg "+(mine?"me":"them");
+  el.innerHTML=
+    (mine?"":`<div class="who" style="color:${esc(m.color)}">${esc(m.pseudo)}</div>`)+
+    `<div class="bubble">${esc(m.body)}</div>`+
+    `<div class="time">${fmtTime(m.created_at)}</div>`;
+  feed.appendChild(el);
+  feed.scrollTop=feed.scrollHeight;
+}
+function addSys(t){
+  const el=document.createElement("div");el.className="sys";el.textContent=t;
+  feed.appendChild(el);feed.scrollTop=feed.scrollHeight;
+}
+
+async function join(){
+  const p=document.getElementById("pseudo").value.trim();
+  if(!p){document.getElementById("pseudo").focus();return;}
+  if(!https://supabase.com/dashboard/project/czbdjtuptihpaneyqtak/||!sb_publishable_wGkIGEk2XXbolLC23_ij3w_8Op8usva){document.getElementById("warn").style.display="block";return;}
+  me.pseudo=p;
+  supa=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+  document.getElementById("gate").style.display="none";
+  input.disabled=false;sendBtn.disabled=false;input.focus();
+
+  // historique
+  const {data,error}=await supa.from("messages").select("*").order("created_at",{ascending:true}).limit(100);
+  if(error){addSys("Erreur de chargement : "+error.message);}
+  else{(data||[]).forEach(addMsg);}
+
+  // temps réel
+  supa.channel("salon")
+    .on("postgres_changes",{event:"INSERT",schema:"public",table:"messages"},
+        payload=>addMsg(payload.new))
+    .subscribe(s=>{
+      const on=s==="SUBSCRIBED";
+      dot.classList.toggle("on",on);
+      statusTxt.textContent=on?"en ligne":"connexion…";
+    });
+  addSys(`Tu es entré dans le salon en tant que ${me.pseudo}`);
+}
+
+async function send(){
+  const body=input.value.trim();
+  if(!body||!supa)return;
+  input.value="";
+  const {error}=await supa.from("messages").insert({pseudo:me.pseudo,color:me.color,body});
+  if(error)addSys("Échec de l'envoi : "+error.message);
+}
+
+document.getElementById("enter").onclick=join;
+document.getElementById("pseudo").addEventListener("keydown",e=>{if(e.key==="Enter")join();});
+sendBtn.onclick=send;
+input.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}});
+</script>
+</body>
+</html>
